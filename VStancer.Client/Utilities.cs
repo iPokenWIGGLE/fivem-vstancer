@@ -47,6 +47,16 @@ namespace VStancer.Client
         public static List<int> GetWorldVehicles()
         {
             List<int> handles = new List<int>();
+            FillWorldVehicles(handles);
+            return handles;
+        }
+
+        public static void FillWorldVehicles(List<int> handles)
+        {
+            if (handles == null)
+                return;
+
+            handles.Clear();
 
             int entity = -1;
             int handle = FindFirstVehicle(ref entity);
@@ -58,8 +68,6 @@ namespace VStancer.Client
 
                 EndFindVehicle(handle);
             }
-
-            return handles;
         }
 
         public static void UpdateFloatDecorator(int vehicle, string name, float currentValue, float defaultValue)
