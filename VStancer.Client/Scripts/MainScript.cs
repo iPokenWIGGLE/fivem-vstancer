@@ -20,7 +20,9 @@ namespace VStancer.Client.Scripts
         private int _playerVehicleHandle;
         private int _playerPedHandle;
         private Vector3 _playerPedCoords;
-        private List<int> _worldVehiclesHandles;
+        private readonly List<int> _worldVehiclesHandles;
+        private readonly List<int> _closeVehicleHandles;
+        private bool _closeVehicleHandlesDirty;
         private float _maxDistanceSquared;
 
         internal int PlayerVehicleHandle
@@ -32,6 +34,7 @@ namespace VStancer.Client.Scripts
                     return;
 
                 _playerVehicleHandle = value;
+                _closeVehicleHandlesDirty = true;
                 PlayerVehicleHandleChanged?.Invoke(this, value);
             }
         }
@@ -45,6 +48,7 @@ namespace VStancer.Client.Scripts
                     return;
 
                 _playerPedHandle = value;
+                _closeVehicleHandlesDirty = true;
                 PlayerPedHandleChanged?.Invoke(this, value);
             }
         }
@@ -74,6 +78,8 @@ namespace VStancer.Client.Scripts
             _playerPedHandle = -1;
             _playerPedCoords = Vector3.Zero;
             _worldVehiclesHandles = new List<int>();
+            _closeVehicleHandles = new List<int>();
+            _closeVehicleHandlesDirty = true;
             _maxDistanceSquared = 10000;
 
             Config = LoadConfig();
@@ -145,20 +151,35 @@ namespace VStancer.Client.Scripts
 
         internal List<int> GetCloseVehicleHandles()
         {
-            List<int> closeVehicles = new List<int>();
+            if (!_closeVehicleHandlesDirty)
+                return _closeVehicleHandles;
 
-            foreach (int handle in _worldVehiclesHandles)
+            _closeVehicleHandlesDirty = false;
+            _closeVehicleHandles.Clear();
+
+            if (_worldVehiclesHandles.Count == 0)
+                return _closeVehicleHandles;
+
+            Vector3 playerCoords = _playerPedCoords;
+            float maxDistanceSquared = _maxDistanceSquared;
+
+            for (int i = _worldVehiclesHandles.Count - 1; i >= 0; i--)
             {
+                int handle = _worldVehiclesHandles[i];
+
                 if (!DoesEntityExist(handle))
+                {
+                    _worldVehiclesHandles.RemoveAt(i);
                     continue;
+                }
 
                 Vector3 coords = GetEntityCoords(handle, true);
 
-                if (Vector3.DistanceSquared(_playerPedCoords, coords) <= _maxDistanceSquared)
-                    closeVehicles.Add(handle);
+                if (Vector3.DistanceSquared(playerCoords, coords) <= maxDistanceSquared)
+                    _closeVehicleHandles.Add(handle);
             }
 
-            return closeVehicles;
+            return _closeVehicleHandles;
         }
 
         private async Task TimedTask()
@@ -167,9 +188,14 @@ namespace VStancer.Client.Scripts
 
             if (currentTime > Config.Timer)
             {
-                _playerPedCoords = GetEntityCoords(_playerPedHandle, true);
+                if (_playerPedHandle != -1 && DoesEntityExist(_playerPedHandle))
+                {
+                    _playerPedCoords = GetEntityCoords(_playerPedHandle, true);
+                    _closeVehicleHandlesDirty = true;
+                }
 
-                _worldVehiclesHandles = Utilities.GetWorldVehicles();
+                Utilities.FillWorldVehicles(_worldVehiclesHandles);
+                _closeVehicleHandlesDirty = true;
 
                 _lastTime = GetGameTimer();
             }
@@ -265,6 +291,7 @@ namespace VStancer.Client.Scripts
                 {
                     Config.ScriptRange = value;
                     _maxDistanceSquared = (float)Math.Pow(Config.ScriptRange, 2.0);
+                    _closeVehicleHandlesDirty = true;
                     Debug.WriteLine($"{nameof(MainScript)}: {nameof(Config.ScriptRange)} updated to {value}");
                 }
                 else Debug.WriteLine($"{nameof(MainScript)}: Error parsing {args[0]} as float");
