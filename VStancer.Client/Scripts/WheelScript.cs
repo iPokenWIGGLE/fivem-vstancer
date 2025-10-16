@@ -266,6 +266,9 @@ namespace VStancer.Client.Scripts
 
         private void UpdateVehicleUsingDecorators(int vehicle)
         {
+            if (!DoesEntityExist(vehicle))
+                return;
+
             int wheelsCount = GetVehicleNumberOfWheels(vehicle);
             int frontCount = Utilities.CalculateFrontWheelsCount(wheelsCount);
 
